@@ -1,0 +1,69 @@
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-size: 12px;
+  font-family: "Roboto", sans-serif;
+}
+
+img {
+  width: 100%;
+  height: auto;
+  width: auto\9; /* для ie8 */
+}
+
+.app {
+  max-width: 300px;
+  margin: 20px;
+}
+
+.header {
+  margin-bottom: 7px;
+  max-width: 100px;
+}
+
+.time {
+  margin-bottom: 7px;
+  border: 1px solid rgb(216, 216, 216);
+  border-radius: 5px;
+  padding: 10px;
+}
+
+.lots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-flow: row wrap;
+  margin-bottom: 7px;
+}
+
+.lot__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid rgb(216, 216, 216);
+  border-radius: 5px;
+  width: 100%;
+  margin-bottom: 7px;
+  padding: 10px;
+}
+
+.lot__content {
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.lot__title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.lot__price {
+  font-weight: bold;
+}
