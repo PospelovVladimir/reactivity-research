@@ -1,19 +1,6 @@
 let state = {
   time: new Date(),
-  lots: [
-    {
-      id: 1,
-      title: "Apple",
-      description: "Apple desciption",
-      price: 13,
-    },
-    {
-      id: 2,
-      title: "Orange",
-      description: "Orange desciption",
-      price: 130,
-    },
-  ],
+  lots: null,
 };
 
 function Header() {
@@ -112,3 +99,74 @@ setInterval(() => {
 
   renderView(state);
 }, 1000);
+
+const api = {
+  get(link) {
+    switch (link) {
+      case "/lots":
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve([
+              {
+                id: 1,
+                title: "Apple",
+                description: "Apple desciption",
+                price: 13,
+              },
+              {
+                id: 2,
+                title: "Orange",
+                description: "Orange desciption",
+                price: 130,
+              },
+            ]);
+          }, 3000);
+        });
+
+      default:
+        new Error("api path is not defined!");
+        break;
+    }
+  },
+};
+
+const stream = {
+  subscribe(channel, callback) {
+    setInterval(() => {
+      callback({
+        id: channel,
+        price: Math.floor(Math.random() * (150 - 50 + 1)) + 50,
+      });
+    }, 500);
+  },
+};
+
+const onPrice = (data) => {
+  state = {
+    ...state,
+    lots: state.lots.map((lot) => {
+      if (lot.id === data.id) {
+        return {
+          ...lot,
+          price: data.price,
+        };
+      }
+      return lot;
+    }),
+  };
+
+  renderView(state);
+};
+
+api.get("/lots").then((lots) => {
+  state = {
+    ...state,
+    lots,
+  };
+
+  renderView(state);
+
+  lots.forEach((lot) => {
+    stream.subscribe(lot.id, onPrice);
+  });
+});
