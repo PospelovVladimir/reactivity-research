@@ -52,7 +52,7 @@ function Lots({ lots }) {
   }
 
   lots.forEach((lot) => {
-    lotsEl.insertAdjacentHTML("afterbegin", Lot(lot));
+    lotsEl.insertAdjacentHTML("beforeend", Lot(lot));
   });
 
   return lotsEl;
@@ -60,13 +60,12 @@ function Lots({ lots }) {
 
 function Lot({ id, title, description, price }) {
   return `<article class="lot__item" data-id="${id}">
-          <div lcass="lot__content">
+          <div class="lot__content">
             <h2 class="lot__title">${title}</h2>
             <p class="lot__desciption">${description}</p>
           </div>
           <div class="lot__price">${price}</div>
-        </article>
-	`;
+        </article>`;
 }
 
 function App({ time, lots }) {
@@ -81,14 +80,86 @@ function App({ time, lots }) {
 }
 
 function renderView(state) {
-  render(App(state), document.querySelector(".root"));
+  render(App(state), document.getElementById("root"));
 }
 
 renderView(state);
 
-function render(newDom, realDomRoot) {
-  realDomRoot.textContent = "";
-  realDomRoot.appendChild(newDom);
+function render(virtualDom, realDomRoot) {
+  const virtualDomRoot = document.createElement(realDomRoot.tagName);
+  virtualDomRoot.id = realDomRoot.id;
+  virtualDomRoot.append(virtualDom);
+
+  sync(virtualDomRoot, realDomRoot);
+}
+
+function sync(virtualNode, realNode) {
+  // sync elements
+  if (virtualNode.id !== realNode.id) {
+    realNode.id = virtualNode.id;
+  }
+
+  if (virtualNode.className !== realNode.className) {
+    realNode.className = virtualNode.className;
+  }
+
+  if (virtualNode.attributes) {
+    Array.from(virtualNode.attributes).forEach((attr) => {
+      realNode[attr.nodeName] = attr.value;
+    });
+  }
+
+  if (virtualNode.nodeValue !== realNode.nodeValue) {
+    realNode.nodeValue = virtualNode.nodeValue;
+  }
+
+  // sync children nodes
+  const virtualChildren = virtualNode.childNodes;
+  const realChildren = realNode.childNodes;
+
+  for (let i = 0; i < virtualChildren.length || i < realChildren.length; i++) {
+    const virtual = virtualChildren[i];
+    const real = realChildren[i];
+
+    // remove
+    if (virtual === undefined && real !== undefined) {
+      real.remove();
+    }
+
+    // update
+    if (
+      virtual !== undefined &&
+      real !== undefined &&
+      virtual.tagName === real.tagName
+    ) {
+      sync(virtual, real);
+    }
+
+    // replace
+    if (
+      virtual !== undefined &&
+      real !== undefined &&
+      virtual.tagName !== real.tagName
+    ) {
+      const realDomEl = createRealNodeByVirtual(virtual);
+      sync(virtual, realDomEl);
+      realNode.replaceChild(realDomEl, real);
+    }
+
+    // create
+    if (virtual !== undefined && real === undefined) {
+      const realDomEl = createRealNodeByVirtual(virtual);
+      sync(virtual, realDomEl);
+      realNode.appendChild(realDomEl);
+    }
+  }
+}
+
+function createRealNodeByVirtual(virtualNode) {
+  if (virtualNode.nodeType === Node.TEXT_NODE) {
+    return document.createTextNode("");
+  }
+  return document.createElement(virtualNode.tagName);
 }
 
 setInterval(() => {
@@ -120,7 +191,7 @@ const api = {
                 price: 130,
               },
             ]);
-          }, 3000);
+          }, 2000);
         });
 
       default:
