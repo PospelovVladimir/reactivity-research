@@ -4,79 +4,165 @@ let state = {
 };
 
 function Header() {
-  const header = document.createElement("header");
-  header.classList.add("header");
-  header.appendChild(Logo());
-
-  return header;
+  return {
+    type: "header",
+    props: {
+      className: "header",
+      children: [
+        {
+          type: Logo,
+        },
+      ],
+    },
+  };
 }
 
 function Logo() {
-  const logo = document.createElement("img");
-  logo.classList.add("logo");
-  logo.src = "./logo.png";
-
-  return logo;
+  return {
+    type: "img",
+    props: {
+      className: "logo",
+      src: "./logo.png",
+    },
+  };
 }
 
 function Time({ time }) {
-  const timeEl = document.createElement("div");
-  timeEl.classList.add("time");
+  const isDay = time.getHours() >= 7 && time.getHours() <= 21;
 
-  const value = document.createElement("span");
-  value.classList.add("time__value");
-  value.textContent = time.toLocaleTimeString();
-
-  const icon = document.createElement("span");
-  icon.classList.add("time__icon");
-
-  if (time.getHours() >= 7 && time.getHours() <= 21) {
-    icon.textContent = "🌕";
-  } else {
-    icon.textContent = "🌑";
-  }
-
-  timeEl.appendChild(value);
-  timeEl.appendChild(icon);
-
-  return timeEl;
+  return {
+    type: "div",
+    props: {
+      className: "time",
+      children: [
+        {
+          type: "span",
+          props: {
+            className: "time__value",
+            children: [time.toLocaleTimeString()],
+          },
+        },
+        {
+          type: "span",
+          props: {
+            className: "time__icon",
+            children: [isDay ? "🌕" : "🌑"],
+          },
+        },
+      ],
+    },
+  };
 }
 
 function Lots({ lots }) {
-  const lotsEl = document.createElement("div");
-  lotsEl.classList.add("lots");
-
   if (lots === null) {
-    lotsEl.textContent = "loading...";
-    return lotsEl;
+    return {
+      type: "div",
+      props: {
+        className: "lots",
+        children: ["loading..."],
+      },
+    };
   }
 
-  lots.forEach((lot) => {
-    lotsEl.insertAdjacentHTML("beforeend", Lot(lot));
-  });
-
-  return lotsEl;
+  return {
+    type: "div",
+    props: {
+      className: "lots",
+      children: lots.map((lot) => {
+        return {
+          type: Lot,
+          props: { ...lot },
+        };
+      }),
+    },
+  };
 }
 
 function Lot({ id, title, description, price }) {
-  return `<article class="lot__item" data-id="${id}">
-          <div class="lot__content">
-            <h2 class="lot__title">${title}</h2>
-            <p class="lot__desciption">${description}</p>
-          </div>
-          <div class="lot__price">${price}</div>
-        </article>`;
+  return {
+    type: "article",
+    key: id,
+    props: {
+      className: "lot__item",
+      children: [
+        {
+          type: "div",
+          props: {
+            className: "lot__content",
+            children: [
+              {
+                type: "h2",
+                props: {
+                  className: "lot__title",
+                  children: [title],
+                },
+              },
+              {
+                type: "p",
+                props: {
+                  className: "lot__desciption",
+                  children: [description],
+                },
+              },
+            ],
+          },
+        },
+        {
+          type: "div",
+          props: {
+            className: "lot__price",
+            children: [price],
+          },
+        },
+      ],
+    },
+  };
 }
 
 function App({ time, lots }) {
-  const app = document.createElement("div");
-  app.classList.add("app");
+  return {
+    type: "div",
+    props: {
+      className: "app",
+      children: [
+        {
+          type: Header,
+          props: {},
+        },
+        {
+          type: Time,
+          props: { time },
+        },
+        {
+          type: Lots,
+          props: { lots },
+        },
+      ],
+    },
+  };
+}
 
-  app.appendChild(Header());
-  app.appendChild(Time({ time }));
-  app.appendChild(Lots({ lots }));
+function evaluate(virtualNode) {
+  if (typeof virtualNode !== "object") {
+    return virtualNode;
+  }
 
-  return app;
+  if (typeof virtualNode.type === "function") {
+    return evaluate(virtualNode.type(virtualNode.props));
+  }
+
+  const props = virtualNode.props || {};
+
+  return {
+    ...virtualNode,
+    props: {
+      ...props,
+      children: Array.isArray(props.children)
+        ? props.children.map(evaluate)
+        : [evaluate(props.children)],
+    },
+  };
 }
 
 function renderView(state) {
@@ -86,35 +172,44 @@ function renderView(state) {
 renderView(state);
 
 function render(virtualDom, realDomRoot) {
-  const virtualDomRoot = document.createElement(realDomRoot.tagName);
-  virtualDomRoot.id = realDomRoot.id;
-  virtualDomRoot.append(virtualDom);
-
+  const completedVirtualDom = evaluate(virtualDom);
+  const virtualDomRoot = {
+    type: realDomRoot.tagName.toLowerCase(),
+    props: {
+      id: realDomRoot.id,
+      ...realDomRoot.attributes,
+      children: [completedVirtualDom],
+    },
+  };
   sync(virtualDomRoot, realDomRoot);
 }
 
 function sync(virtualNode, realNode) {
   // sync elements
-  if (virtualNode.id !== realNode.id) {
-    realNode.id = virtualNode.id;
-  }
+  if (virtualNode.props) {
+    Object.entries(virtualNode.props).forEach(([key, value]) => {
+      if (key === "children" || key === "key") {
+        return;
+      }
 
-  if (virtualNode.className !== realNode.className) {
-    realNode.className = virtualNode.className;
-  }
-
-  if (virtualNode.attributes) {
-    Array.from(virtualNode.attributes).forEach((attr) => {
-      realNode[attr.nodeName] = attr.value;
+      if (realNode[key] !== value) {
+        realNode[key] = value;
+      }
     });
   }
 
-  if (virtualNode.nodeValue !== realNode.nodeValue) {
-    realNode.nodeValue = virtualNode.nodeValue;
+  if (virtualNode.key) {
+    realNode.dataset.key = virtualNode.key;
+  }
+
+  if (typeof virtualNode !== "object" && virtualNode !== realNode.nodeValue) {
+    realNode.nodeValue = virtualNode;
   }
 
   // sync children nodes
-  const virtualChildren = virtualNode.childNodes;
+  const virtualChildren = virtualNode.props
+    ? virtualNode.props.children || []
+    : [];
   const realChildren = realNode.childNodes;
 
   for (let i = 0; i < virtualChildren.length || i < realChildren.length; i++) {
@@ -130,7 +225,7 @@ function sync(virtualNode, realNode) {
     if (
       virtual !== undefined &&
       real !== undefined &&
-      virtual.tagName === real.tagName
+      (virtual.type || "") === (real.tagName || "").toLowerCase()
     ) {
       sync(virtual, real);
     }
@@ -139,7 +234,7 @@ function sync(virtualNode, realNode) {
     if (
       virtual !== undefined &&
       real !== undefined &&
-      virtual.tagName !== real.tagName
+      (virtual.type || "") !== (real.tagName || "").toLowerCase()
     ) {
       const realDomEl = createRealNodeByVirtual(virtual);
       sync(virtual, realDomEl);
@@ -156,10 +251,10 @@ function sync(virtualNode, realNode) {
 }
 
 function createRealNodeByVirtual(virtualNode) {
-  if (virtualNode.nodeType === Node.TEXT_NODE) {
+  if (typeof virtualNode !== "object") {
     return document.createTextNode("");
   }
-  return document.createElement(virtualNode.tagName);
+  return document.createElement(virtualNode.type);
 }
 
 setInterval(() => {
