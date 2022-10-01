@@ -3,178 +3,70 @@ let state = {
   lots: null,
 };
 
-const vDom = {
-  createElement(type, config, ...children) {
-    const key = config ? config.key || null : null;
-    const props = config || {};
-
-    if (children.length === 1) {
-      props.children = children[0];
-    } else if (children.length > 1) {
-      props.children = children;
-    }
-
-    return {
-      type,
-      key,
-      props,
-    };
-  },
-};
-
 function Header() {
-  return vDom.createElement("header", { className: "header" }, vDom.createElement(Logo));
+  return (
+    <header className="header">
+      <Logo />
+    </header>
+  );
 }
 
 function Logo() {
-  return vDom.createElement("img", { className: "logo", src: "./logo.png" });
+  return <img className="logo" src="./logo.png" alt="erjkgh e" />;
 }
 
 function Time({ time }) {
   const isDay = time.getHours() >= 7 && time.getHours() <= 21;
 
-  return vDom.createElement(
-    "div",
-    { className: "time" },
-    vDom.createElement("span", { className: "time__value" }, time.toLocaleTimeString()),
-    vDom.createElement("span", { className: "time__icon" }, isDay ? "🌕" : "🌑")
+  return (
+    <div className="time">
+      <span className="time__value">{time.toLocaleTimeString()}</span>
+      <span className="time__icon">{isDay ? "🌕" : "🌑"}</span>
+    </div>
   );
 }
 
 function Lots({ lots }) {
   if (lots === null) {
-    return vDom.createElement("div", { className: "lots" }, "loading...");
+    return <div className="lots">loading...</div>;
   }
 
-  const lotsList = lots.map((lot) => vDom.createElement(Lot, { ...lot }));
-  return vDom.createElement("div", { className: "lots" }, lotsList);
+  return (
+    <div className="lots">
+      {lots.map((lot) => (
+        <Lot lot={lot} />
+      ))}
+    </div>
+  );
 }
 
-function Lot({ id, title, description, price }) {
-  return vDom.createElement(
-    "article",
-    { key: id, className: "lot__item" },
-    vDom.createElement(
-      "div",
-      { className: "lot__content" },
-      vDom.createElement("h2", { className: "lot__title" }, title),
-      vDom.createElement("p", { className: "lot__desciption" }, description)
-    ),
-    vDom.createElement("div", { className: "lot__price" }, price)
+function Lot({ lot }) {
+  return (
+    <article className="lot__item" key={lot.id}>
+      <div className="lot__content">
+        <h2 className="lot__title">{lot.title}</h2>
+        <p className="lot__desciption">{lot.description}</p>
+      </div>
+      <div className="lot__price">{lot.price}</div>
+    </article>
   );
 }
 
 function App({ state }) {
-  return vDom.createElement(
-    "div",
-    { className: "app" },
-    vDom.createElement(Header),
-    vDom.createElement(Time, { time: state.time }),
-    vDom.createElement(Lots, { lots: state.lots })
+  return (
+    <div className="app">
+      <Header />
+      <Time time={state.time} />
+      <Lots lots={state.lots} />
+    </div>
   );
 }
 
-function evaluate(virtualNode) {
-  if (typeof virtualNode !== "object") {
-    return virtualNode;
-  }
-
-  if (typeof virtualNode.type === "function") {
-    return evaluate(virtualNode.type(virtualNode.props));
-  }
-
-  const props = virtualNode.props || {};
-
-  return {
-    ...virtualNode,
-    props: {
-      ...props,
-      children: Array.isArray(props.children) ? props.children.map(evaluate) : [evaluate(props.children)],
-    },
-  };
-}
-
 function renderView(state) {
-  render(vDom.createElement(App, { state }), document.getElementById("root"));
+  ReactDOM.render(React.createElement(App, { state }), document.getElementById("root"));
 }
 
 renderView(state);
-
-function render(virtualDom, realDomRoot) {
-  const completedVirtualDom = evaluate(virtualDom);
-  const virtualDomRoot = {
-    type: realDomRoot.tagName.toLowerCase(),
-    props: {
-      id: realDomRoot.id,
-      ...realDomRoot.attributes,
-      children: [completedVirtualDom],
-    },
-  };
-  sync(virtualDomRoot, realDomRoot);
-}
-
-function sync(virtualNode, realNode) {
-  // sync elements
-  if (virtualNode.props) {
-    Object.entries(virtualNode.props).forEach(([key, value]) => {
-      if (key === "children" || key === "key") {
-        return;
-      }
-
-      if (realNode[key] !== value) {
-        realNode[key] = value;
-      }
-    });
-  }
-
-  if (virtualNode.key) {
-    realNode.dataset.key = virtualNode.key;
-  }
-
-  if (typeof virtualNode !== "object" && virtualNode !== realNode.nodeValue) {
-    realNode.nodeValue = virtualNode;
-  }
-
-  // sync children nodes
-  const virtualChildren = virtualNode.props ? virtualNode.props.children || [] : [];
-  const realChildren = realNode.childNodes;
-
-  for (let i = 0; i < virtualChildren.length || i < realChildren.length; i++) {
-    const virtual = virtualChildren[i];
-    const real = realChildren[i];
-
-    // remove
-    if (virtual === undefined && real !== undefined) {
-      real.remove();
-    }
-
-    // update
-    if (virtual !== undefined && real !== undefined && (virtual.type || "") === (real.tagName || "").toLowerCase()) {
-      sync(virtual, real);
-    }
-
-    // replace
-    if (virtual !== undefined && real !== undefined && (virtual.type || "") !== (real.tagName || "").toLowerCase()) {
-      const realDomEl = createRealNodeByVirtual(virtual);
-      sync(virtual, realDomEl);
-      realNode.replaceChild(realDomEl, real);
-    }
-
-    // create
-    if (virtual !== undefined && real === undefined) {
-      const realDomEl = createRealNodeByVirtual(virtual);
-      sync(virtual, realDomEl);
-      realNode.appendChild(realDomEl);
-    }
-  }
-}
-
-function createRealNodeByVirtual(virtualNode) {
-  if (typeof virtualNode !== "object") {
-    return document.createTextNode("");
-  }
-  return document.createElement(virtualNode.type);
-}
 
 setInterval(() => {
   state = {
