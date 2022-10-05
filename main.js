@@ -1,7 +1,90 @@
-let state = {
+const initTimeState = {
   time: new Date(),
+};
+
+const UPDATE_TIME = "UPDATE_TIME";
+
+const initLotsState = {
   lots: null,
 };
+
+const LOAD_LOTS = "LOAD_LOTS";
+const UPDATE_PRICE_LOT = "UPDATE_PRICE_LOT";
+
+// --------------------------------- work with store
+
+function timeReducer(state = initTimeState, action) {
+  switch (action.type) {
+    case UPDATE_TIME:
+      return {
+        ...state,
+        time: action.data,
+      };
+
+    default:
+      return state;
+  }
+}
+
+function lotsReducer(state = initLotsState, action) {
+  switch (action.type) {
+    case LOAD_LOTS:
+      return {
+        ...state,
+        lots: action.data,
+      };
+    case UPDATE_PRICE_LOT:
+      return {
+        ...state,
+        lots: state.lots.map((lot) => {
+          if (lot.id === action.data.id) {
+            return {
+              ...lot,
+              price: action.data.price,
+            };
+          }
+          return lot;
+        }),
+      };
+
+    default:
+      return state;
+  }
+}
+
+// ------------------ actions
+function updateTimeInStore(time) {
+  return {
+    type: UPDATE_TIME,
+    data: time,
+  };
+}
+
+function loadLots(lots) {
+  return {
+    type: LOAD_LOTS,
+    data: lots,
+  };
+}
+
+function updatePriceLot(data) {
+  return {
+    type: UPDATE_PRICE_LOT,
+    data,
+  };
+}
+
+const store = Redux.createStore(
+  Redux.combineReducers({
+    clock: timeReducer,
+    auction: lotsReducer,
+  })
+);
+
+store.subscribe(() => renderView(store.getState()));
+
+// ------------------
+// ---------------------------------
 
 function Header() {
   return (
@@ -34,15 +117,15 @@ function Lots({ lots }) {
   return (
     <div className="lots">
       {lots.map((lot) => (
-        <Lot lot={lot} />
+        <Lot lot={lot} key={lot.id} />
       ))}
     </div>
   );
 }
 
-function Lot({ lot }) {
+function Lot({ lot }, key) {
   return (
-    <article className="lot__item" key={lot.id}>
+    <article className="lot__item" key={key}>
       <div className="lot__content">
         <h2 className="lot__title">{lot.title}</h2>
         <p className="lot__desciption">{lot.description}</p>
@@ -56,8 +139,8 @@ function App({ state }) {
   return (
     <div className="app">
       <Header />
-      <Time time={state.time} />
-      <Lots lots={state.lots} />
+      <Time time={state.clock.time} />
+      <Lots lots={state.auction.lots} />
     </div>
   );
 }
@@ -66,16 +149,7 @@ function renderView(state) {
   ReactDOM.render(React.createElement(App, { state }), document.getElementById("root"));
 }
 
-renderView(state);
-
-setInterval(() => {
-  state = {
-    ...state,
-    time: new Date(),
-  };
-
-  renderView(state);
-}, 1000);
+renderView(store.getState());
 
 const api = {
   get(link) {
@@ -118,32 +192,18 @@ const stream = {
   },
 };
 
-const onPrice = (data) => {
-  state = {
-    ...state,
-    lots: state.lots.map((lot) => {
-      if (lot.id === data.id) {
-        return {
-          ...lot,
-          price: data.price,
-        };
-      }
-      return lot;
-    }),
-  };
-
-  renderView(state);
-};
+setInterval(() => {
+  store.dispatch(updateTimeInStore(new Date()));
+}, 1000);
 
 api.get("/lots").then((lots) => {
-  state = {
-    ...state,
-    lots,
-  };
-
-  renderView(state);
+  store.dispatch(loadLots(lots));
 
   lots.forEach((lot) => {
     stream.subscribe(lot.id, onPrice);
   });
 });
+
+const onPrice = (data) => {
+  store.dispatch(updatePriceLot(data));
+};
