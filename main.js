@@ -10,6 +10,8 @@ const initLotsState = {
 
 const LOAD_LOTS = "LOAD_LOTS";
 const UPDATE_PRICE_LOT = "UPDATE_PRICE_LOT";
+const ADD_LOT_IN_FAVORITE = "ADD_LOT_IN_FAVORITE";
+const REMOVE_LOT_FROM_FAVORITE = "REMOVE_LOT_FROM_FAVORITE";
 
 // --------------------------------- work with store
 
@@ -46,7 +48,32 @@ function lotsReducer(state = initLotsState, action) {
           return lot;
         }),
       };
-
+    case ADD_LOT_IN_FAVORITE:
+      return {
+        ...state,
+        lots: state.lots.map((lot) => {
+          if (lot.id === action.id) {
+            return {
+              ...lot,
+              favorite: true,
+            };
+          }
+          return lot;
+        }),
+      };
+    case REMOVE_LOT_FROM_FAVORITE:
+      return {
+        ...state,
+        lots: state.lots.map((lot) => {
+          if (lot.id === action.id) {
+            return {
+              ...lot,
+              favorite: false,
+            };
+          }
+          return lot;
+        }),
+      };
     default:
       return state;
   }
@@ -74,6 +101,20 @@ function updatePriceLot(data) {
   };
 }
 
+function addLotInFavorite(id) {
+  return {
+    type: ADD_LOT_IN_FAVORITE,
+    id,
+  };
+}
+
+function removeLotFromFavorite(id) {
+  return {
+    type: REMOVE_LOT_FROM_FAVORITE,
+    id,
+  };
+}
+
 const store = Redux.createStore(
   Redux.combineReducers({
     clock: timeReducer,
@@ -81,7 +122,7 @@ const store = Redux.createStore(
   })
 );
 
-store.subscribe(() => renderView(store.getState()));
+store.subscribe(() => renderView(store));
 
 // ------------------
 // ---------------------------------
@@ -109,7 +150,7 @@ function Time({ time }) {
   );
 }
 
-function Lots({ lots }) {
+function Lots({ lots, favorite, unfavorite }) {
   if (lots === null) {
     return <div className="lots">loading...</div>;
   }
@@ -117,39 +158,66 @@ function Lots({ lots }) {
   return (
     <div className="lots">
       {lots.map((lot) => (
-        <Lot lot={lot} key={lot.id} />
+        <Lot lot={lot} key={lot.id} favorite={favorite} unfavorite={unfavorite} />
       ))}
     </div>
   );
 }
 
-function Lot({ lot }, key) {
+function Lot({ lot, favorite, unfavorite }) {
   return (
-    <article className="lot__item" key={key}>
+    <article className={`lot__item ${lot.favorite ? "lot__item-favorite" : ""}`}>
       <div className="lot__content">
         <h2 className="lot__title">{lot.title}</h2>
         <p className="lot__desciption">{lot.description}</p>
       </div>
       <div className="lot__price">{lot.price}</div>
+      <Favorite active={lot.favorite} favorite={() => favorite(lot.id)} unfavorite={() => unfavorite(lot.id)} />
     </article>
   );
 }
 
-function App({ state }) {
+function Favorite({ active, favorite, unfavorite }) {
+  return active ? (
+    <button type="button" className="favorite" onClick={() => unfavorite()}>
+      <ion-icon name="heart"></ion-icon>
+    </button>
+  ) : (
+    <button type="button" className="favorite" onClick={() => favorite()}>
+      <ion-icon name="heart-outline"></ion-icon>
+    </button>
+  );
+}
+
+function App({ state, favorite, unfavorite }) {
   return (
     <div className="app">
       <Header />
       <Time time={state.clock.time} />
-      <Lots lots={state.auction.lots} />
+      <Lots lots={state.auction.lots} favorite={favorite} unfavorite={unfavorite} />
     </div>
   );
 }
 
-function renderView(state) {
-  ReactDOM.render(React.createElement(App, { state }), document.getElementById("root"));
+function renderView(store) {
+  const state = store.getState();
+
+  const favorite = (id) => {
+    api.post(`/lots/${id}/favorite`).then(() => {
+      store.dispatch(addLotInFavorite(id));
+    });
+  };
+
+  const unfavorite = (id) => {
+    api.post(`/lots/${id}/unfavorite`).then(() => {
+      store.dispatch(removeLotFromFavorite(id));
+    });
+  };
+
+  ReactDOM.render(React.createElement(App, { state, favorite, unfavorite }), document.getElementById("root"));
 }
 
-renderView(store.getState());
+renderView(store);
 
 const api = {
   get(link) {
@@ -163,15 +231,39 @@ const api = {
                 title: "Apple",
                 description: "Apple desciption",
                 price: 13,
+                favorite: false,
               },
               {
                 id: 2,
                 title: "Orange",
                 description: "Orange desciption",
                 price: 130,
+                favorite: false,
               },
             ]);
           }, 2000);
+        });
+
+      default:
+        new Error("api path is not defined!");
+        break;
+    }
+  },
+
+  post(link) {
+    const [path, id, action] = link.slice(1).split("/");
+    switch (`/${path}/${action}`) {
+      case "/lots/favorite":
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({});
+          }, 500);
+        });
+      case "/lots/unfavorite":
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({});
+          }, 500);
         });
 
       default:

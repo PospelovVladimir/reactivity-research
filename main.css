@@ -51,6 +51,11 @@ img {
   padding: 10px;
 }
 
+.lot__item.lot__item-favorite {
+  border: 1px solid rgb(133, 39, 209);
+  background-color: rgb(237, 214, 255);
+}
+
 .lot__content {
   display: flex;
   flex-flow: column;
@@ -66,4 +71,15 @@ img {
 
 .lot__price {
   font-weight: bold;
+}
+
+.favorite {
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.favorite:hover {
+  transform: scale(1.1);
 }
