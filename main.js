@@ -127,6 +127,10 @@ store.subscribe(() => renderView(store));
 // ------------------
 // ---------------------------------
 
+// --------------------------------- work with context
+const StoreContext = React.createContext();
+// ---------------------------------
+
 function Header() {
   return (
     <header className="header">
@@ -136,7 +140,20 @@ function Header() {
 }
 
 function Logo() {
-  return <img className="logo" src="./logo.png" alt="erjkgh e" />;
+  return <img className="logo" src="./logo.png" alt="logo" />;
+}
+
+function TimeConnected() {
+  return (
+    <StoreContext.Consumer>
+      {(store) => {
+        const state = store.getState();
+        const time = state.clock.time;
+
+        return <Time time={time} />;
+      }}
+    </StoreContext.Consumer>
+  );
 }
 
 function Time({ time }) {
@@ -150,7 +167,20 @@ function Time({ time }) {
   );
 }
 
-function Lots({ lots, favorite, unfavorite }) {
+function LotsConnected() {
+  return (
+    <StoreContext.Consumer>
+      {(store) => {
+        const state = store.getState();
+        const lots = state.auction.lots;
+
+        return <Lots lots={lots} />;
+      }}
+    </StoreContext.Consumer>
+  );
+}
+
+function Lots({ lots }) {
   if (lots === null) {
     return <div className="lots">loading...</div>;
   }
@@ -158,9 +188,33 @@ function Lots({ lots, favorite, unfavorite }) {
   return (
     <div className="lots">
       {lots.map((lot) => (
-        <Lot lot={lot} key={lot.id} favorite={favorite} unfavorite={unfavorite} />
+        <LotConnected lot={lot} key={lot.id} />
       ))}
     </div>
+  );
+}
+
+function LotConnected({ lot }) {
+  return (
+    <StoreContext.Consumer>
+      {(store) => {
+        const dispatch = store.dispatch;
+
+        const favorite = (id) => {
+          api.post(`/lots/${id}/favorite`).then(() => {
+            dispatch(addLotInFavorite(id));
+          });
+        };
+
+        const unfavorite = (id) => {
+          api.post(`/lots/${id}/unfavorite`).then(() => {
+            dispatch(removeLotFromFavorite(id));
+          });
+        };
+
+        return <Lot lot={lot} favorite={favorite} unfavorite={unfavorite} />;
+      }}
+    </StoreContext.Consumer>
   );
 }
 
@@ -189,32 +243,23 @@ function Favorite({ active, favorite, unfavorite }) {
   );
 }
 
-function App({ state, favorite, unfavorite }) {
+function App() {
   return (
     <div className="app">
       <Header />
-      <Time time={state.clock.time} />
-      <Lots lots={state.auction.lots} favorite={favorite} unfavorite={unfavorite} />
+      <TimeConnected />
+      <LotsConnected />
     </div>
   );
 }
 
 function renderView(store) {
-  const state = store.getState();
-
-  const favorite = (id) => {
-    api.post(`/lots/${id}/favorite`).then(() => {
-      store.dispatch(addLotInFavorite(id));
-    });
-  };
-
-  const unfavorite = (id) => {
-    api.post(`/lots/${id}/unfavorite`).then(() => {
-      store.dispatch(removeLotFromFavorite(id));
-    });
-  };
-
-  ReactDOM.render(React.createElement(App, { state, favorite, unfavorite }), document.getElementById("root"));
+  ReactDOM.render(
+    <StoreContext.Provider value={store}>
+      <App />
+    </StoreContext.Provider>,
+    document.getElementById("root")
+  );
 }
 
 renderView(store);
@@ -291,9 +336,9 @@ setInterval(() => {
 api.get("/lots").then((lots) => {
   store.dispatch(loadLots(lots));
 
-  lots.forEach((lot) => {
-    stream.subscribe(lot.id, onPrice);
-  });
+  // lots.forEach((lot) => {
+  //   stream.subscribe(lot.id, onPrice);
+  // });
 });
 
 const onPrice = (data) => {
