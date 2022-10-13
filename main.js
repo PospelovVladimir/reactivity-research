@@ -101,10 +101,26 @@ function updatePriceLot(data) {
   };
 }
 
+function favoriteAsync(id) {
+  return (dispatch, getState, { api }) => {
+    api.post(`/lots/${id}/favorite`).then(() => {
+      dispatch(addLotInFavorite(id));
+    });
+  };
+}
+
 function addLotInFavorite(id) {
   return {
     type: ADD_LOT_IN_FAVORITE,
     id,
+  };
+}
+
+function unfavoriteAsync(id) {
+  return (dispatch, getState, { api }) => {
+    api.post(`/lots/${id}/unfavorite`).then(() => {
+      dispatch(removeLotFromFavorite(id));
+    });
   };
 }
 
@@ -115,21 +131,30 @@ function removeLotFromFavorite(id) {
   };
 }
 
+const thunk = ReduxThunk;
+
 const store = Redux.createStore(
   Redux.combineReducers({
     clock: timeReducer,
     auction: lotsReducer,
-  })
+  }),
+  Redux.applyMiddleware(thunk.withExtraArgument({ api }))
 );
-
-store.subscribe(() => renderView(store));
 
 // ------------------
 // ---------------------------------
 
-// --------------------------------- work with context
-const StoreContext = React.createContext();
-// ---------------------------------
+//----------------------------------
+
+function App() {
+  return (
+    <div className="app">
+      <Header />
+      <TimeConnected />
+      <LotsConnected />
+    </div>
+  );
+}
 
 function Header() {
   return (
@@ -143,19 +168,6 @@ function Logo() {
   return <img className="logo" src="./logo.png" alt="logo" />;
 }
 
-function TimeConnected() {
-  return (
-    <StoreContext.Consumer>
-      {(store) => {
-        const state = store.getState();
-        const time = state.clock.time;
-
-        return <Time time={time} />;
-      }}
-    </StoreContext.Consumer>
-  );
-}
-
 function Time({ time }) {
   const isDay = time.getHours() >= 7 && time.getHours() <= 21;
 
@@ -167,18 +179,13 @@ function Time({ time }) {
   );
 }
 
-function LotsConnected() {
-  return (
-    <StoreContext.Consumer>
-      {(store) => {
-        const state = store.getState();
-        const lots = state.auction.lots;
+const timeMapStateToProps = (state) => {
+  return {
+    time: state.clock.time,
+  };
+};
 
-        return <Lots lots={lots} />;
-      }}
-    </StoreContext.Consumer>
-  );
-}
+const TimeConnected = ReactRedux.connect(timeMapStateToProps)(Time);
 
 function Lots({ lots }) {
   if (lots === null) {
@@ -194,29 +201,13 @@ function Lots({ lots }) {
   );
 }
 
-function LotConnected({ lot }) {
-  return (
-    <StoreContext.Consumer>
-      {(store) => {
-        const dispatch = store.dispatch;
+const lotsMapStateToProps = (state) => {
+  return {
+    lots: state.auction.lots,
+  };
+};
 
-        const favorite = (id) => {
-          api.post(`/lots/${id}/favorite`).then(() => {
-            dispatch(addLotInFavorite(id));
-          });
-        };
-
-        const unfavorite = (id) => {
-          api.post(`/lots/${id}/unfavorite`).then(() => {
-            dispatch(removeLotFromFavorite(id));
-          });
-        };
-
-        return <Lot lot={lot} favorite={favorite} unfavorite={unfavorite} />;
-      }}
-    </StoreContext.Consumer>
-  );
-}
+const LotsConnected = ReactRedux.connect(lotsMapStateToProps)(Lots);
 
 function Lot({ lot, favorite, unfavorite }) {
   return (
@@ -231,6 +222,13 @@ function Lot({ lot, favorite, unfavorite }) {
   );
 }
 
+const lotMapDispatchToProps = {
+  favorite: favoriteAsync,
+  unfavorite: unfavoriteAsync,
+};
+
+const LotConnected = ReactRedux.connect(null, lotMapDispatchToProps)(Lot);
+
 function Favorite({ active, favorite, unfavorite }) {
   return active ? (
     <button type="button" className="favorite" onClick={() => unfavorite()}>
@@ -243,26 +241,12 @@ function Favorite({ active, favorite, unfavorite }) {
   );
 }
 
-function App() {
-  return (
-    <div className="app">
-      <Header />
-      <TimeConnected />
-      <LotsConnected />
-    </div>
-  );
-}
-
-function renderView(store) {
-  ReactDOM.render(
-    <StoreContext.Provider value={store}>
-      <App />
-    </StoreContext.Provider>,
-    document.getElementById("root")
-  );
-}
-
-renderView(store);
+ReactDOM.render(
+  <ReactRedux.Provider store={store}>
+    <App />
+  </ReactRedux.Provider>,
+  document.getElementById("root")
+);
 
 const api = {
   get(link) {
@@ -302,13 +286,13 @@ const api = {
         return new Promise((resolve) => {
           setTimeout(() => {
             resolve({});
-          }, 500);
+          }, 1500);
         });
       case "/lots/unfavorite":
         return new Promise((resolve) => {
           setTimeout(() => {
             resolve({});
-          }, 500);
+          }, 1500);
         });
 
       default:
@@ -336,9 +320,9 @@ setInterval(() => {
 api.get("/lots").then((lots) => {
   store.dispatch(loadLots(lots));
 
-  // lots.forEach((lot) => {
-  //   stream.subscribe(lot.id, onPrice);
-  // });
+  lots.forEach((lot) => {
+    stream.subscribe(lot.id, onPrice);
+  });
 });
 
 const onPrice = (data) => {
