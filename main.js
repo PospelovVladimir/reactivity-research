@@ -1,39 +1,44 @@
-const initTimeState = {
-  time: new Date(),
-};
-
-const UPDATE_TIME = "UPDATE_TIME";
-
 const initLotsState = {
-  lots: null,
+  lots: [],
+  loaded: false,
+  load: false,
+  error: null,
 };
 
-const LOAD_LOTS = "LOAD_LOTS";
+const LOTS_STATUS_LOADED = "LOTS_STATUS_LOADED";
+const LOTS_STATUS_LOAD = "LOTS_STATUS_LOAD";
+const LOTS_STATUS_ERROR = "LOTS_STATUS_ERROR";
 const UPDATE_PRICE_LOT = "UPDATE_PRICE_LOT";
 const ADD_LOT_IN_FAVORITE = "ADD_LOT_IN_FAVORITE";
 const REMOVE_LOT_FROM_FAVORITE = "REMOVE_LOT_FROM_FAVORITE";
 
 // --------------------------------- work with store
 
-function timeReducer(state = initTimeState, action) {
-  switch (action.type) {
-    case UPDATE_TIME:
-      return {
-        ...state,
-        time: action.data,
-      };
-
-    default:
-      return state;
-  }
-}
-
 function lotsReducer(state = initLotsState, action) {
   switch (action.type) {
-    case LOAD_LOTS:
+    case LOTS_STATUS_LOADED:
       return {
         ...state,
         lots: action.data,
+        loaded: true,
+        load: false,
+        error: null,
+      };
+    case LOTS_STATUS_LOAD:
+      return {
+        ...state,
+        lots: [],
+        loaded: false,
+        load: true,
+        error: null,
+      };
+    case LOTS_STATUS_ERROR:
+      return {
+        ...state,
+        lots: [],
+        loaded: false,
+        load: false,
+        error: action.data,
       };
     case UPDATE_PRICE_LOT:
       return {
@@ -80,17 +85,39 @@ function lotsReducer(state = initLotsState, action) {
 }
 
 // ------------------ actions
-function updateTimeInStore(time) {
+
+function statusLoadedLots(lots) {
   return {
-    type: UPDATE_TIME,
-    data: time,
+    type: LOTS_STATUS_LOADED,
+    data: lots,
   };
 }
 
-function loadLots(lots) {
+function statusLoadLots() {
   return {
-    type: LOAD_LOTS,
-    data: lots,
+    type: LOTS_STATUS_LOAD,
+    data: null,
+  };
+}
+
+function statusErrorLots(status) {
+  return {
+    type: LOTS_STATUS_ERROR,
+    data: status,
+  };
+}
+
+function asyncLoadLots() {
+  return (dispatch, getState, { api }) => {
+    dispatch(statusLoadLots());
+    return api
+      .get("/lots")
+      .then((lots) => {
+        dispatch(statusLoadedLots(lots));
+      })
+      .catch((error) => {
+        dispatch(statusErrorLots(error.message));
+      });
   };
 }
 
@@ -101,9 +128,17 @@ function updatePriceLot(data) {
   };
 }
 
+function asyncSubscribeLotOnSocket(id) {
+  return (dispatch, getState, { stream }) => {
+    return stream.subscribe(id, (data) => {
+      store.dispatch(updatePriceLot(data));
+    });
+  };
+}
+
 function favoriteAsync(id) {
   return (dispatch, getState, { api }) => {
-    api.post(`/lots/${id}/favorite`).then(() => {
+    return api.post(`/lots/${id}/favorite`).then(() => {
       dispatch(addLotInFavorite(id));
     });
   };
@@ -118,7 +153,7 @@ function addLotInFavorite(id) {
 
 function unfavoriteAsync(id) {
   return (dispatch, getState, { api }) => {
-    api.post(`/lots/${id}/unfavorite`).then(() => {
+    return api.post(`/lots/${id}/unfavorite`).then(() => {
       dispatch(removeLotFromFavorite(id));
     });
   };
@@ -131,145 +166,32 @@ function removeLotFromFavorite(id) {
   };
 }
 
-const thunk = ReduxThunk;
-
-const store = Redux.createStore(
-  Redux.combineReducers({
-    clock: timeReducer,
-    auction: lotsReducer,
-  }),
-  Redux.applyMiddleware(thunk.withExtraArgument({ api }))
-);
-
-// ------------------
-// ---------------------------------
-
-//----------------------------------
-
-function App() {
-  return (
-    <div className="app">
-      <Header />
-      <TimeConnected />
-      <LotsConnected />
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="header">
-      <Logo />
-    </header>
-  );
-}
-
-function Logo() {
-  return <img className="logo" src="./logo.png" alt="logo" />;
-}
-
-function Time({ time }) {
-  const isDay = time.getHours() >= 7 && time.getHours() <= 21;
-
-  return (
-    <div className="time">
-      <span className="time__value">{time.toLocaleTimeString()}</span>
-      <span className="time__icon">{isDay ? "🌕" : "🌑"}</span>
-    </div>
-  );
-}
-
-const timeMapStateToProps = (state) => {
-  return {
-    time: state.clock.time,
-  };
-};
-
-const TimeConnected = ReactRedux.connect(timeMapStateToProps)(Time);
-
-function Lots({ lots }) {
-  if (lots === null) {
-    return <div className="lots">loading...</div>;
-  }
-
-  return (
-    <div className="lots">
-      {lots.map((lot) => (
-        <LotConnected lot={lot} key={lot.id} />
-      ))}
-    </div>
-  );
-}
-
-const lotsMapStateToProps = (state) => {
-  return {
-    lots: state.auction.lots,
-  };
-};
-
-const LotsConnected = ReactRedux.connect(lotsMapStateToProps)(Lots);
-
-function Lot({ lot, favorite, unfavorite }) {
-  return (
-    <article className={`lot__item ${lot.favorite ? "lot__item-favorite" : ""}`}>
-      <div className="lot__content">
-        <h2 className="lot__title">{lot.title}</h2>
-        <p className="lot__desciption">{lot.description}</p>
-      </div>
-      <div className="lot__price">{lot.price}</div>
-      <Favorite active={lot.favorite} favorite={() => favorite(lot.id)} unfavorite={() => unfavorite(lot.id)} />
-    </article>
-  );
-}
-
-const lotMapDispatchToProps = {
-  favorite: favoriteAsync,
-  unfavorite: unfavoriteAsync,
-};
-
-const LotConnected = ReactRedux.connect(null, lotMapDispatchToProps)(Lot);
-
-function Favorite({ active, favorite, unfavorite }) {
-  return active ? (
-    <button type="button" className="favorite" onClick={() => unfavorite()}>
-      <ion-icon name="heart"></ion-icon>
-    </button>
-  ) : (
-    <button type="button" className="favorite" onClick={() => favorite()}>
-      <ion-icon name="heart-outline"></ion-icon>
-    </button>
-  );
-}
-
-ReactDOM.render(
-  <ReactRedux.Provider store={store}>
-    <App />
-  </ReactRedux.Provider>,
-  document.getElementById("root")
-);
-
 const api = {
   get(link) {
     switch (link) {
       case "/lots":
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           setTimeout(() => {
-            resolve([
-              {
-                id: 1,
-                title: "Apple",
-                description: "Apple desciption",
-                price: 13,
-                favorite: false,
-              },
-              {
-                id: 2,
-                title: "Orange",
-                description: "Orange desciption",
-                price: 130,
-                favorite: false,
-              },
-            ]);
+            if (Math.random() > 0.25) {
+              resolve([
+                {
+                  id: 1,
+                  title: "Apple",
+                  description: "Apple desciption",
+                  price: 13,
+                  favorite: false,
+                },
+                {
+                  id: 2,
+                  title: "Orange",
+                  description: "Orange desciption",
+                  price: 130,
+                  favorite: false,
+                },
+              ]);
+            } else {
+              reject(new Error("Лоты с сервера не пришли :)"));
+            }
           }, 2000);
         });
 
@@ -304,27 +226,215 @@ const api = {
 
 const stream = {
   subscribe(channel, callback) {
-    setInterval(() => {
+    const unInterval = setInterval(() => {
       callback({
         id: channel,
         price: Math.floor(Math.random() * (150 - 50 + 1)) + 50,
       });
     }, 500);
+
+    return () => {
+      clearInterval(unInterval);
+    };
   },
 };
 
-setInterval(() => {
-  store.dispatch(updateTimeInStore(new Date()));
-}, 1000);
+const thunk = ReduxThunk;
 
-api.get("/lots").then((lots) => {
-  store.dispatch(loadLots(lots));
+const store = Redux.createStore(
+  Redux.combineReducers({
+    auction: lotsReducer,
+  }),
+  Redux.applyMiddleware(thunk.withExtraArgument({ api, stream }))
+);
 
-  lots.forEach((lot) => {
-    stream.subscribe(lot.id, onPrice);
-  });
-});
+// ------------------
+// ---------------------------------
 
-const onPrice = (data) => {
-  store.dispatch(updatePriceLot(data));
+//----------------------------------
+
+function App() {
+  return (
+    <div className="app">
+      <Header />
+      <TimeContainer />
+      <LotsContainerConnected />
+    </div>
+  );
+}
+
+function Header() {
+  return (
+    <header className="header">
+      <Logo />
+    </header>
+  );
+}
+
+function Logo() {
+  return <img className="logo" src="./logo.png" alt="logo" />;
+}
+
+function TimeContainer() {
+  const [time, setState] = React.useState(new Date());
+
+  React.useEffect(() => {
+    const unInterval = setInterval(() => setState(new Date()), 1000);
+    return () => clearInterval(unInterval);
+  }, [1]);
+
+  return <Time time={time} />;
+}
+
+function Time({ time }) {
+  const isDay = time.getHours() >= 7 && time.getHours() <= 21;
+
+  return (
+    <div className="time">
+      <span className="time__value">{time.toLocaleTimeString()}</span>
+      <span className="time__icon">{isDay ? "🌕" : "🌑"}</span>
+    </div>
+  );
+}
+
+function Loading() {
+  return <div className="lots">loading...</div>;
+}
+
+function AlertError({ message }) {
+  return <div className="error">{message}</div>;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+
+function LotsContainer({ asyncLoad, statusLoaded, statusLoad, statusError, lots }) {
+  React.useEffect(() => {
+    if (!statusLoaded && !statusLoad && statusError === null) {
+      asyncLoad();
+    }
+  }, [!statusLoaded]);
+
+  if (statusLoad) {
+    return <Loading />;
+  }
+
+  if (statusError !== null) {
+    return <AlertError message={statusError} />;
+  }
+
+  if (!statusLoaded) {
+    return null;
+  }
+
+  return <Lots lots={lots} />;
+}
+
+const lotsContainerMapStateToProps = (state) => {
+  return {
+    lots: state.auction.lots,
+    statusLoaded: state.auction.loaded,
+    statusLoad: state.auction.load,
+    statusError: state.auction.error,
+  };
 };
+
+const lotsContainerMapDispatchToProps = {
+  asyncLoad: asyncLoadLots,
+};
+
+const LotsContainerConnected = ReactRedux.connect(
+  lotsContainerMapStateToProps,
+  lotsContainerMapDispatchToProps
+)(LotsContainer);
+
+function Lots({ lots }) {
+  return (
+    <div className="lots">
+      {lots.map((lot) => {
+        return <LotContainerConnected lot={lot} key={lot.id} />;
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------
+
+function Lot({ lot, favorite, unfavorite }) {
+  return (
+    <article className={`lot__item ${lot.favorite ? "lot__item-favorite" : ""}`}>
+      <div className="lot__content">
+        <h2 className="lot__title">{lot.title}</h2>
+        <p className="lot__desciption">{lot.description}</p>
+      </div>
+      <div className="lot__price">{lot.price}</div>
+      <Favorite active={lot.favorite} favorite={() => favorite(lot.id)} unfavorite={() => unfavorite(lot.id)} />
+    </article>
+  );
+}
+
+const lotMapDispatchToProp = {
+  favorite: favoriteAsync,
+  unfavorite: unfavoriteAsync,
+};
+
+const LotConnected = ReactRedux.connect(null, lotMapDispatchToProp)(Lot);
+
+function LotContainer({ lot, subscribe }) {
+  React.useEffect(() => {
+    const unSub = subscribe(lot.id);
+    return () => unSub();
+  }, [lot.id]);
+
+  return <LotConnected lot={lot} />;
+}
+
+const lotContainerMapDispatchToProps = {
+  subscribe: asyncSubscribeLotOnSocket,
+};
+
+const LotContainerConnected = ReactRedux.connect(null, lotContainerMapDispatchToProps)(LotContainer);
+
+function Favorite({ active, favorite, unfavorite }) {
+  const [isDisabled, setDisabled] = React.useState(false);
+
+  const onClickFavorite = () => {
+    setDisabled(true);
+    favorite()
+      .then(() => {
+        setDisabled(false);
+      })
+      .catch(() => {
+        setDisabled(false);
+      });
+  };
+
+  const onClickUnfavorite = () => {
+    setDisabled(true);
+    unfavorite()
+      .then(() => {
+        setDisabled(false);
+      })
+      .catch(() => {
+        setDisabled(false);
+      });
+  };
+
+  return active ? (
+    <button type="button" className="favorite" onClick={() => onClickUnfavorite()} disabled={isDisabled}>
+      <ion-icon name="heart"></ion-icon>
+    </button>
+  ) : (
+    <button type="button" className="favorite" onClick={() => onClickFavorite()} disabled={isDisabled}>
+      <ion-icon name="heart-outline"></ion-icon>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+
+ReactDOM.render(
+  <ReactRedux.Provider store={store}>
+    <App />
+  </ReactRedux.Provider>,
+  document.getElementById("root")
+);
