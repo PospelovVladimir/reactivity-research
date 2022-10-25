@@ -80,6 +80,18 @@ img {
   cursor: pointer;
 }
 
+.favorite:disabled {
+  cursor: progress;
+}
+
 .favorite:hover {
   transform: scale(1.1);
+}
+
+.error {
+  background-color: rgb(192, 103, 103);
+  border: 1px solid red;
+  border-radius: 5px;
+  color: #fff;
+  padding: 5px 20px;
 }
