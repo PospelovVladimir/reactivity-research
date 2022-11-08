@@ -11,6 +11,7 @@ const LOTS_STATUS_ERROR = "LOTS_STATUS_ERROR";
 const UPDATE_PRICE_LOT = "UPDATE_PRICE_LOT";
 const ADD_LOT_IN_FAVORITE = "ADD_LOT_IN_FAVORITE";
 const REMOVE_LOT_FROM_FAVORITE = "REMOVE_LOT_FROM_FAVORITE";
+const REMOVE_LOTS_FROM_STATE = "REMOVE_LOTS_FROM_STATE";
 
 // --------------------------------- work with store
 
@@ -78,6 +79,14 @@ function lotsReducer(state = initLotsState, action) {
           }
           return lot;
         }),
+      };
+    case REMOVE_LOTS_FROM_STATE:
+      return {
+        ...state,
+        lots: [],
+        loaded: false,
+        load: false,
+        error: null,
       };
     default:
       return state;
@@ -163,6 +172,13 @@ function removeLotFromFavorite(id) {
   return {
     type: REMOVE_LOT_FROM_FAVORITE,
     id,
+  };
+}
+
+function removeLotsFromState() {
+  return {
+    type: REMOVE_LOTS_FROM_STATE,
+    data: null,
   };
 }
 
@@ -255,11 +271,220 @@ const store = Redux.createStore(
 
 function App() {
   return (
-    <div className="app">
-      <Header />
+    <BrowserRouter>
+      <div className="app">
+        <Header />
+        <Content />
+      </div>
+    </BrowserRouter>
+  );
+}
+
+const RouterContext = React.createContext();
+
+function createBrowserHistory() {
+  return {
+    get state() {
+      const state = window.history.state;
+      return state ? state.location : window.location.pathname;
+    },
+    listen(listener) {
+      const handler = (e) => {
+        const state = e.state;
+        const location = state ? state.location : window.location.pathname;
+        listener(location);
+      };
+
+      window.addEventListener("popstate", handler);
+
+      return () => window.removeEventListener("popstate", handler);
+    },
+    push(location) {
+      window.history.pushState({ location }, `Page ${location}`, location);
+      window.dispatchEvent(new Event("popstate"), { location });
+    },
+    createHref(path) {
+      return path;
+    },
+  };
+}
+
+function createHashHistory() {
+  return {
+    get state() {
+      return window.location.hash.slice(1) || "/";
+    },
+    listen(listener) {
+      const handler = (e) => {
+        listener(window.location.hash.slice(1));
+      };
+
+      window.addEventListener("hashchange", handler);
+      return () => window.removeEventListener("hashchange", handler);
+    },
+    push(location) {
+      window.location.hash = location;
+    },
+    createHref(path) {
+      return "#" + path;
+    },
+  };
+}
+
+function BrowserRouter({ children }) {
+  const history = createBrowserHistory();
+  return <Router history={history} children={children} />;
+}
+
+function HashRouter({ children }) {
+  const history = createHashHistory();
+  return <Router history={history} children={children} />;
+}
+
+function Router({ children, history }) {
+  const [location, setLocation] = React.useState(history.state);
+
+  React.useEffect(() => {
+    return history.listen((location) => {
+      setLocation(location);
+    });
+  }, [setLocation]);
+
+  return <RouterContext.Provider value={{ location, history }}>{children}</RouterContext.Provider>;
+}
+
+function Menu() {
+  return (
+    <>
+      <Link path="/">home</Link>
+      <Link path="/lots">lots</Link>
+      <Link path="/help">help</Link>
+    </>
+  );
+}
+
+function Page({ children }) {
+  return <div className="page">{children}</div>;
+}
+
+function HomePage() {
+  return (
+    <Page>
+      <p>content home</p>
+    </Page>
+  );
+}
+
+function LotsPage() {
+  return (
+    <>
       <TimeContainer />
       <LotsContainerConnected />
-    </div>
+    </>
+  );
+}
+
+function useParams() {
+  const router = React.useContext(RouterContext);
+  return router.match.groups;
+}
+
+function LotPage() {
+  const router = useParams();
+  return (
+    <Page>
+      <div>Страничка лота c номером: #{router.id}</div>
+    </Page>
+  );
+}
+
+function HelpPage() {
+  return (
+    <Page>
+      <p>content help</p>
+    </Page>
+  );
+}
+
+function NotFound() {
+  return <div>Страница не найдена</div>;
+}
+
+function Content() {
+  return (
+    <Switch>
+      <Route path="/" exact>
+        <HomePage />
+      </Route>
+      <Route path="/lots" exact>
+        <LotsPage />
+      </Route>
+      <Route path="/lots/(?<id>[\d]+)" exact>
+        <LotPage />
+      </Route>
+      <Route path="/help">
+        <HelpPage />
+      </Route>
+      <Route path=".*">
+        <NotFound />
+      </Route>
+    </Switch>
+  );
+}
+
+function Link({ path, children, ...props }) {
+  return (
+    <RouterContext.Consumer>
+      {(value) => {
+        const href = path ? value.history.createHref(path) : "";
+        const onClick = (e) => {
+          e.preventDefault();
+          value.history.push(path);
+        };
+
+        return (
+          <a href={href} onClick={onClick} {...props}>
+            {children}
+          </a>
+        );
+      }}
+    </RouterContext.Consumer>
+  );
+}
+
+function matchPath(location, props) {
+  const regText = props.exact ? `^${props.path}$` : `^${props.path}(/.*)?`;
+
+  const regExp = new RegExp(regText);
+  return regExp.exec(location);
+}
+
+function Switch({ children }) {
+  const value = React.useContext(RouterContext);
+
+  for (let i = 0; i < children.length; i++) {
+    const match = matchPath(value.location, children[i].props);
+
+    if (match) {
+      return React.cloneElement(children[i], { complitedMatch: match });
+    }
+  }
+  return null;
+}
+
+function Route({ ...props }) {
+  return (
+    <RouterContext.Consumer>
+      {(value) => {
+        const match = props.complitedMatch ? props.complitedMatch : matchPath(value.location, props);
+
+        if (match) {
+          return <RouterContext.Provider value={{ ...value, match }}>{props.children}</RouterContext.Provider>;
+        }
+
+        return null;
+      }}
+    </RouterContext.Consumer>
   );
 }
 
@@ -267,6 +492,7 @@ function Header() {
   return (
     <header className="header">
       <Logo />
+      <Menu />
     </header>
   );
 }
@@ -301,25 +527,36 @@ function Loading() {
   return <div className="lots">loading...</div>;
 }
 
-function AlertError({ message }) {
-  return <div className="error">{message}</div>;
+function AlertError({ message, reload }) {
+  return (
+    <div className="error">
+      <span>{message}</span>
+      {reload ? <ion-icon name="reload-outline" onClick={reload}></ion-icon> : null}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
 
-function LotsContainer({ asyncLoad, statusLoaded, statusLoad, statusError, lots }) {
+function LotsContainer({ asyncLoad, unload, statusLoaded, statusLoad, statusError, lots }) {
   React.useEffect(() => {
     if (!statusLoaded && !statusLoad && statusError === null) {
       asyncLoad();
     }
   }, [!statusLoaded]);
 
+  React.useEffect(() => {
+    if (statusLoaded || statusError !== null) {
+      return unload;
+    }
+  }, [statusLoaded, statusError]);
+
   if (statusLoad) {
     return <Loading />;
   }
 
   if (statusError !== null) {
-    return <AlertError message={statusError} />;
+    return <AlertError message={statusError} reload={asyncLoad} />;
   }
 
   if (!statusLoaded) {
@@ -340,6 +577,7 @@ const lotsContainerMapStateToProps = (state) => {
 
 const lotsContainerMapDispatchToProps = {
   asyncLoad: asyncLoadLots,
+  unload: removeLotsFromState,
 };
 
 const LotsContainerConnected = ReactRedux.connect(
@@ -363,7 +601,9 @@ function Lot({ lot, favorite, unfavorite }) {
   return (
     <article className={`lot__item ${lot.favorite ? "lot__item-favorite" : ""}`}>
       <div className="lot__content">
-        <h2 className="lot__title">{lot.title}</h2>
+        <h2 className="lot__title">
+          <Link path={`/lots/${lot.id}`}>{lot.title}</Link>
+        </h2>
         <p className="lot__desciption">{lot.description}</p>
       </div>
       <div className="lot__price">{lot.price}</div>
@@ -420,11 +660,11 @@ function Favorite({ active, favorite, unfavorite }) {
   };
 
   return active ? (
-    <button type="button" className="favorite" onClick={() => onClickUnfavorite()} disabled={isDisabled}>
+    <button type="button" className="favorite" onClick={onClickUnfavorite} disabled={isDisabled}>
       <ion-icon name="heart"></ion-icon>
     </button>
   ) : (
-    <button type="button" className="favorite" onClick={() => onClickFavorite()} disabled={isDisabled}>
+    <button type="button" className="favorite" onClick={onClickFavorite} disabled={isDisabled}>
       <ion-icon name="heart-outline"></ion-icon>
     </button>
   );
