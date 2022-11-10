@@ -280,85 +280,17 @@ function App() {
   );
 }
 
-const RouterContext = React.createContext();
-
-function createBrowserHistory() {
-  return {
-    get state() {
-      const state = window.history.state;
-      return state ? state.location : window.location.pathname;
-    },
-    listen(listener) {
-      const handler = (e) => {
-        const state = e.state;
-        const location = state ? state.location : window.location.pathname;
-        listener(location);
-      };
-
-      window.addEventListener("popstate", handler);
-
-      return () => window.removeEventListener("popstate", handler);
-    },
-    push(location) {
-      window.history.pushState({ location }, `Page ${location}`, location);
-      window.dispatchEvent(new Event("popstate"), { location });
-    },
-    createHref(path) {
-      return path;
-    },
-  };
-}
-
-function createHashHistory() {
-  return {
-    get state() {
-      return window.location.hash.slice(1) || "/";
-    },
-    listen(listener) {
-      const handler = (e) => {
-        listener(window.location.hash.slice(1));
-      };
-
-      window.addEventListener("hashchange", handler);
-      return () => window.removeEventListener("hashchange", handler);
-    },
-    push(location) {
-      window.location.hash = location;
-    },
-    createHref(path) {
-      return "#" + path;
-    },
-  };
-}
-
-function BrowserRouter({ children }) {
-  const history = createBrowserHistory();
-  return <Router history={history} children={children} />;
-}
-
-function HashRouter({ children }) {
-  const history = createHashHistory();
-  return <Router history={history} children={children} />;
-}
-
-function Router({ children, history }) {
-  const [location, setLocation] = React.useState(history.state);
-
-  React.useEffect(() => {
-    return history.listen((location) => {
-      setLocation(location);
-    });
-  }, [setLocation]);
-
-  return <RouterContext.Provider value={{ location, history }}>{children}</RouterContext.Provider>;
-}
+const { BrowserRouter, Switch, Route, Link, NavLink, useParams, useRouteMatch, Redirect } = ReactRouterDOM;
 
 function Menu() {
   return (
     <>
-      <Link path="/">home</Link>
-      <Link path="/lots">lots</Link>
-      <Link path="/help">help</Link>
+      <NavLink to="/" exact>
+        home
+      </NavLink>
+      <NavLink to="/lots">lots</NavLink>
+      <NavLink to="/help">help</NavLink>
+      <NavLink to="/test">test</NavLink>
     </>
   );
 }
@@ -382,11 +314,6 @@ function LotsPage() {
       <LotsContainerConnected />
     </>
   );
-}
-
-function useParams() {
-  const router = React.useContext(RouterContext);
-  return router.match.groups;
 }
 
 function LotPage() {
@@ -419,72 +346,16 @@ function Content() {
       <Route path="/lots" exact>
         <LotsPage />
       </Route>
-      <Route path="/lots/(?<id>[\d]+)" exact>
+      <Route path="/lots/:id" exact>
         <LotPage />
       </Route>
       <Route path="/help">
         <HelpPage />
       </Route>
-      <Route path=".*">
+      <Route path="*">
         <NotFound />
       </Route>
     </Switch>
-  );
-}
-
-function Link({ path, children, ...props }) {
-  return (
-    <RouterContext.Consumer>
-      {(value) => {
-        const href = path ? value.history.createHref(path) : "";
-        const onClick = (e) => {
-          e.preventDefault();
-          value.history.push(path);
-        };
-
-        return (
-          <a href={href} onClick={onClick} {...props}>
-            {children}
-          </a>
-        );
-      }}
-    </RouterContext.Consumer>
-  );
-}
-
-function matchPath(location, props) {
-  const regText = props.exact ? `^${props.path}$` : `^${props.path}(/.*)?`;
-
-  const regExp = new RegExp(regText);
-  return regExp.exec(location);
-}
-
-function Switch({ children }) {
-  const value = React.useContext(RouterContext);
-
-  for (let i = 0; i < children.length; i++) {
-    const match = matchPath(value.location, children[i].props);
-
-    if (match) {
-      return React.cloneElement(children[i], { complitedMatch: match });
-    }
-  }
-  return null;
-}
-
-function Route({ ...props }) {
-  return (
-    <RouterContext.Consumer>
-      {(value) => {
-        const match = props.complitedMatch ? props.complitedMatch : matchPath(value.location, props);
-
-        if (match) {
-          return <RouterContext.Provider value={{ ...value, match }}>{props.children}</RouterContext.Provider>;
-        }
-
-        return null;
-      }}
-    </RouterContext.Consumer>
   );
 }
 
@@ -602,7 +473,7 @@ function Lot({ lot, favorite, unfavorite }) {
     <article className={`lot__item ${lot.favorite ? "lot__item-favorite" : ""}`}>
       <div className="lot__content">
         <h2 className="lot__title">
-          <Link path={`/lots/${lot.id}`}>{lot.title}</Link>
+          <Link to={`/lots/${lot.id}`}>{lot.title}</Link>
         </h2>
         <p className="lot__desciption">{lot.description}</p>
       </div>
